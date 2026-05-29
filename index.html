@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Editor de Documentos JeyMed</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        
+        .doc-page { 
+            background: white; 
+            width: 8.5in;
+            min-height: 11in;
+            margin: 20px auto;
+            padding: 0.75in;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+            border: 1px solid #dee2e6;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .main-content { flex: 1; position: relative; z-index: 2; }
+        
+        .teal-text { color: #5ea8a8 !important; }
+        .teal-border { border-color: #5ea8a8 !important; }
+        .gray-border { border-color: #d3d3d3 !important; }
+        
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            text-align: center;
+            opacity: 0.08;
+            pointer-events: none;
+            z-index: 1;
+            white-space: nowrap;
+        }
+        .watermark-title { font-family: 'Brush Script MT', cursive, sans-serif; font-size: 10rem; font-weight: bold; line-height: 0.8; }
+        .watermark-subtitle { font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 3.5rem; font-weight: 800; letter-spacing: 2px; }
+
+        .custom-table { border-collapse: collapse; }
+        .custom-table thead tr { border-top: 1px solid #b0b0b0 !important; border-bottom: 1px solid #b0b0b0 !important; }
+        .custom-table thead th { color: #5ea8a8 !important; font-weight: 600 !important; padding: 8px 4px !important; border: none !important; }
+        .custom-table tbody tr { border-bottom: 1px solid #dcdcdc !important; }
+        .custom-table tbody td { padding: 10px 4px !important; border: none !important; color: #212529; }
+        .custom-table, .custom-table th, .custom-table td, .custom-table tr, .custom-table tbody, .custom-table thead { background-color: transparent !important; }
+        
+        @media print { 
+            .no-print { display: none; } 
+            body { padding: 0; background: white; } 
+            .doc-page { box-shadow: none; border: none; margin: 0; } 
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="container no-print mb-4 bg-white p-4 rounded shadow-sm border">
+        <h5 class="mb-3 text-secondary">Panel de Control JeyMed</h5>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <input type="file" id="fileInput" accept="application/pdf" class="form-control form-control-sm">
+                <small class="text-muted">Sube tu comprobante PDF (Ej: comprobante-1779744417.pdf)</small>
+            </div>
+            <div class="col-md-3">
+                <select id="tipoDoc" class="form-select form-select-sm" onchange="checkTipo()">
+                    <option value="COTIZACIÓN DE VENTA">Cotización de Venta</option>
+                    <option value="COTIZACIÓN DE TRABAJO">Cotización de Trabajo</option>
+                    <option value="FACTURA">Factura</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select id="tipoMant" class="form-select form-select-sm d-none">
+                    <option value="Mantenimiento Preventivo">Mantenimiento Preventivo</option>
+                    <option value="Mantenimiento Correctivo">Mantenimiento Correctivo</option>
+                    <option value="Reparación">Reparación</option>
+                    <option value="Mantenimiento Preventivo Mayor">Mantenimiento Preventivo Mayor</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="mt-3">
+            <button onclick="generarDatos()" class="btn btn-success btn-sm" id="btnGenerar">Generar desde PDF</button>
+            <button onclick="window.print()" class="btn btn-secondary btn-sm">Imprimir</button>
+        </div>
+    </div>
+
+    <div class="doc-page mt-4">
+        <div class="watermark">
+            <div class="watermark-title">JeyMed</div>
+            <div class="watermark-subtitle">INNOVACIÓN Y TECNOLOGÍA</div>
+        </div>
+
+        <div class="main-content">
+            <div class="d-flex justify-content-between align-items-start mb-5">
+                <div>
+                    <img src="https://lh3.googleusercontent.com/d/1XJ25S1lM292TzB8V_vD2YkS11D5s3f2K" style="max-width: 170px;" alt="Logo JeyMed">
+                </div>
+                <div class="d-flex text-start" style="font-size: 0.65rem;">
+                    <div class="ps-3 pe-4 border-start border-2 teal-border">
+                        <span class="fw-bold">SOCIEDAD ANONIMA (JEYMED)</span><br>
+                        6 AVENIDA 1- 81 OFICINA 906, ZONA 14,<br>
+                        01014, Las Conchas, GUATEMALA, Guatemala<br>
+                        73337811
+                    </div>
+                    <div class="ps-3 border-start border-2 teal-border">
+                        Jeymed.medical@gmail.com<br>
+                        Telf.: 54110303
+                    </div>
+                </div>
+            </div>
+
+            <h3 id="docTitle" class="text-center text-uppercase fw-bold mb-5 mt-3" style="letter-spacing: 1px;">COTIZACIÓN DE VENTA</h3>
+            
+            <div class="row mb-5 small g-0 position-relative">
+                <div class="col-12 border-top border-2 gray-border mb-2"></div>
+                <div class="col-6 pe-3">
+                    <p class="teal-text fw-bold text-uppercase mb-1" style="font-size: 0.75rem;">Datos de cotización de venta</p>
+                    <div id="datosVenta" class="text-dark" contenteditable="true" style="min-height: 2rem;"></div>
+                </div>
+                <div class="col-6 ps-4 border-start border-2 teal-border">
+                    <p class="teal-text fw-bold text-uppercase mb-1" style="font-size: 0.75rem;">Datos del cliente</p>
+                    <div id="datosCliente" class="text-dark" contenteditable="true" style="min-height: 2rem;"></div>
+                </div>
+            </div>
+
+            <table class="table table-sm small custom-table w-100" style="font-size: 0.75rem;">
+                <thead>
+                    <tr class="text-uppercase">
+                        <th style="width: 12%;">REF.</th>
+                        <th style="width: 43%;">NOMBRE</th>
+                        <th class="text-end" style="width: 12%;">PRECIO</th>
+                        <th class="text-center" style="width: 8%;">DTO.</th>
+                        <th class="text-center" style="width: 8%;">UDS.</th>
+                        <th class="text-end" style="width: 12%;">SUBTOTAL</th>
+                        <th class="text-end" style="width: 5%;">IMP.</th>
+                    </tr>
+                </thead>
+                <tbody id="itemsTable">
+                </tbody>
+            </table>
+        </div>
+
+        <div id="totalTable" class="mt-auto position-relative z-2 w-100 d-none">
+            <div class="d-flex justify-content-end mb-4 mt-3">
+                <div style="width: 35%;">
+                    <div class="d-flex justify-content-between border-bottom pb-2 mb-2" style="border-color: #c0c0c0 !important;">
+                        <span class="fw-bold teal-text">BASE</span>
+                        <span class="teal-text" id="baseVal"></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-bold teal-text fs-5">TOTAL</span>
+                        <span class="fw-bold text-dark fs-5" id="totalVal"></span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="border-top border-2 pt-1 text-end text-muted" style="border-color: #5ea8a8 !important; font-size: 0.65rem;">
+                <span id="pieDocRef"></span><br>
+                1 / 1
+            </div>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        function checkTipo() {
+            let tipoMantElement = document.getElementById('tipoMant');
+            let tipoDocElement = document.getElementById('tipoDoc');
+            if (tipoMantElement && tipoDocElement) {
+                tipoMantElement.classList.toggle('d-none', tipoDocElement.value !== 'COTIZACIÓN DE TRABAJO');
+            }
+        }
+
+        async function generarDatos() {
+            const btnGenerar = document.getElementById('btnGenerar');
+            btnGenerar.innerText = "Procesando...";
+            btnGenerar.disabled = true;
+
+            const tipoDocElement = document.getElementById('tipoDoc');
+            const tipoMantElement = document.getElementById('tipoMant');
+            const title = tipoDocElement ? tipoDocElement.value : 'COTIZACIÓN DE VENTA';
+            const mant = tipoMantElement ? tipoMantElement.value : '';
+            
+            let docTitleElement = document.getElementById('docTitle');
+            if(docTitleElement) docTitleElement.innerText = title + (title === 'COTIZACIÓN DE TRABAJO' ? " - " + mant : "");
+            
+            let fileInput = document.getElementById('fileInput');
+            
+            let num = "COV-0001";
+            let today = new Date();
+            let fecha = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+            let cliente = "Cliente no detectado";
+            let ubicacion = "Guatemala";
+            let dataProductos = [];
+
+            if (fileInput && fileInput.files.length > 0 && fileInput.files[0].type === "application/pdf") {
+                try {
+                    const file = fileInput.files[0];
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    
+                    let rawItems = [];
+                    let textoPlano = "";
+                    
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const textContent = await page.getTextContent();
+                        textContent.items.forEach(item => {
+                            if (item.str.trim() !== '') {
+                                rawItems.push({ text: item.str.trim(), x: item.transform[4], y: item.transform[5] });
+                                textoPlano += item.str.trim() + " ";
+                            }
+                        });
+                    }
+
+                    rawItems.sort((a, b) => {
+                        let diffY = b.y - a.y; 
+                        if (Math.abs(diffY) > 5) return diffY; 
+                        return a.x - b.x;
+                    });
+
+                    let lineasPDF = [];
+                    let currentLine = [];
+                    let currentY = null;
+
+                    rawItems.forEach(item => {
+                        if (currentY === null || Math.abs(currentY - item.y) > 5) {
+                            if (currentLine.length > 0) lineasPDF.push(currentLine.join(" || "));
+                            currentLine = [item.text];
+                            currentY = item.y;
+                        } else {
+                            currentLine.push(item.text);
+                        }
+                    });
+                    if (currentLine.length > 0) lineasPDF.push(currentLine.join(" || "));
+
+                    lineasPDF.forEach((linea, index) => {
+                        let cols = linea.split(" || ");
+                        
+                        // --- EXTRACCIÓN DEL CLIENTE ("Contacto") ---
+                        let idxContacto = cols.findIndex(c => c.trim() === "Contacto");
+                        if (idxContacto !== -1) {
+                            // Si en el PDF el nombre quedó en la misma línea (Ej: Contacto || Dr. Xicaraj)
+                            if (cols.length > idxContacto + 1 && cols[idxContacto + 1] !== "Fecha") {
+                                cliente = cols[idxContacto + 1];
+                            } 
+                            // Si quedó en la fila de abajo como una tabla
+                            else if (index + 1 < lineasPDF.length) {
+                                let nextCols = lineasPDF[index + 1].split(" || ");
+                                if (nextCols.length > idxContacto) {
+                                    cliente = nextCols[idxContacto];
+                                } else if (nextCols.length > 0) {
+                                    cliente = nextCols[0];
+                                }
+                            }
+                        }
+
+                        // --- EXTRACCIÓN DE LA FECHA ---
+                        let idxFecha = cols.findIndex(c => c.trim() === "Fecha");
+                        if (idxFecha !== -1) {
+                            if (cols.length > idxFecha + 1 && cols[idxFecha + 1] !== "Vendedor") {
+                                fecha = cols[idxFecha + 1].split("-")[0].trim();
+                            } else if (index + 1 < lineasPDF.length) {
+                                let nextCols = lineasPDF[index + 1].split(" || ");
+                                if (nextCols.length > idxFecha) {
+                                    fecha = nextCols[idxFecha].split("-")[0].trim();
+                                }
+                            }
+                        }
+
+                        // --- EXTRACCIÓN DE PRODUCTOS ---
+                        if (cols.length >= 3) {
+                            let posibleCant = parseInt(cols[1]);
+                            let penultimo = cols[cols.length - 2];
+                            let ultimo = cols[cols.length - 1];
+                            
+                            if (!isNaN(posibleCant) && typeof ultimo === "string" && ultimo.includes('Q')) {
+                                let nom = cols[0];
+                                let subStr = ultimo.replace(/Q/g, '').replace(/,/g, '').trim();
+                                let subNum = parseFloat(subStr);
+                                let precioUnitario = penultimo.includes('Q') ? penultimo.replace(/Q/g, '').trim() : subStr;
+
+                                if (!isNaN(subNum)) {
+                                    dataProductos.push({
+                                        ref: "-", 
+                                        nom: nom,
+                                        subdesc: null,
+                                        pre: precioUnitario,
+                                        dto: "0,00%",
+                                        uds: posibleCant.toString(),
+                                        sub: subNum
+                                    });
+                                }
+                            }
+                        }
+                    });
+
+                    // Corrección extra para los nombres largos de instrumental cortados en 2 líneas
+                    for (let i = 0; i < dataProductos.length - 1; i++) {
+                        if (dataProductos[i].nom === "Portaguajas Laparoscopico 5mm Curvo" && lineasPDF.some(l => l.includes("Con Mango Recto"))) {
+                            dataProductos[i].nom += " Con Mango Recto";
+                        }
+                    }
+
+                    // Extraer número de transacción del PDF o usar el nombre del archivo
+                    let numMatch = textoPlano.match(/transacción\s*.*?(\d{2,})/i);
+                    if (numMatch) {
+                        num = "TR-" + numMatch[1];
+                    } else if (file.name.includes('-')) {
+                        let parts = file.name.replace(/\.[^/.]+$/, "").split('-');
+                        if(parts.length >= 2) num = "COV-" + parts[1].trim();
+                    }
+
+                } catch (error) {
+                    console.error("Error al procesar el PDF:", error);
+                    alert("Hubo un error al procesar el archivo. Revisa la consola.");
+                }
+            }
+
+            // --- INSERCIÓN EN EL HTML ---
+            let datosVentaEl = document.getElementById('datosVenta');
+            if(datosVentaEl) datosVentaEl.innerHTML = `Número: <span class='fw-bold'>${num}</span><br>Fecha: <span class='fw-bold'>${fecha}</span>`;
+
+            let datosClienteEl = document.getElementById('datosCliente');
+            if(datosClienteEl) datosClienteEl.innerHTML = `<span class='fw-bold'>${cliente}</span><br>${ubicacion}`;
+
+            let pieDocRefEl = document.getElementById('pieDocRef');
+            if(pieDocRefEl) pieDocRefEl.innerText = `${num} (${fecha})`;
+            
+            let html = ""; let total = 0;
+            dataProductos.forEach(i => {
+                total += i.sub;
+                let nombreHTML = `<span class="text-dark">${i.nom}</span>`;
+                html += `<tr>
+                    <td class="align-top">${i.ref}</td>
+                    <td class="align-top">${nombreHTML}</td>
+                    <td class="align-top text-end">${i.pre}</td>
+                    <td class="align-top text-center">${i.dto}</td>
+                    <td class="align-top text-center">${i.uds}</td>
+                    <td class="align-top text-end">${i.sub.toLocaleString('es-ES', {minimumFractionDigits: 2})}</td>
+                    <td class="align-top text-end"></td>
+                </tr>`;
+            });
+
+            let itemsTable = document.getElementById('itemsTable');
+            if(itemsTable) itemsTable.innerHTML = html;
+            
+            const totalFormat = "Q " + total.toLocaleString('es-ES', {minimumFractionDigits: 2});
+            if(document.getElementById('baseVal')) document.getElementById('baseVal').innerText = totalFormat;
+            if(document.getElementById('totalVal')) document.getElementById('totalVal').innerText = totalFormat;
+            
+            let totalTable = document.getElementById('totalTable');
+            if(totalTable && dataProductos.length > 0) totalTable.classList.remove('d-none');
+
+            btnGenerar.innerText = "Generar desde PDF";
+            btnGenerar.disabled = false;
+        }
+    </script>
+</body>
+</html>
